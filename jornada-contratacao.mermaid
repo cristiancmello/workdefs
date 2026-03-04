@@ -1,0 +1,94 @@
+sequenceDiagram
+    actor U as Usuário
+    participant App as App
+    participant API as Backend
+
+    U->>App: tap "Seguros"
+    U->>App: tap "Simular Celular"
+
+    App->>API: GET /seguro/celular/device
+    API-->>App: modeloCelular, memoriaGB, primeiraContratacao
+
+    U->>App: tap "Proteger meu iPhone"
+
+    App->>API: GET /seguro/celular/precificacao
+    note right of API: coberturas=todas, franquia=normal
+    API-->>App: mensalidadeBase, mensalidadeCartao, parcelasDisponiveis, limiteIndenizacao
+
+    opt Alterar modelo
+        U->>App: tap "Alterar modelo"
+        U->>App: input modelo + chip memória
+        U->>App: tap "Confirmar"
+        App->>API: GET /seguro/celular/precificacao
+        API-->>App: mensalidadeBase, mensalidadeCartao, parcelasDisponiveis
+    end
+
+    opt Alterar franquia
+        U->>App: tap "Alterar franquia"
+        U->>App: tap "radio Franquia normal | reduzida"
+        U->>App: tap "Selecionar"
+        App->>API: GET /seguro/celular/precificacao
+        API-->>App: mensalidadeBase, mensalidadeCartao, parcelasDisponiveis
+    end
+
+    opt Toggle coberturas
+        U->>App: tap "toggle Danos acidentais | Roubo e furto"
+        App->>API: GET /seguro/celular/precificacao
+        API-->>App: mensalidadeBase, mensalidadeCartao
+    end
+
+    U->>App: tap "Continuar"
+    App->>API: GET /clientes/me/perfil-seguro
+    API-->>App: clienteExclusivoC6, possuiCartaoCredito, saldoContaCorrente
+
+    alt cliente exclusivo C6 + tem cartão
+        App->>App: navega -> confirmacaoPagamento
+
+        alt escolhe Débito
+            U->>App: tap "Débito em conta"
+            App->>App: navega -> resumoContratacaoDebito
+        else escolhe Cartão
+            U->>App: tap "Cartão de crédito" ou "Parcela selecionada"
+            App->>App: navega -> resumoContratacaoCartao
+        end
+
+    else cliente exclusivo C6 + sem cartão
+        App->>App: navega -> resumoContratacaoDebito
+
+    else não é cliente exclusivo C6
+        App->>App: navega -> bottomSheetIMEI
+        U->>App: input IMEI
+        U->>App: tap "Continuar"
+        App->>API: POST /seguro/celular/imei/validar
+        API-->>App: imeiValido, motivoErro?
+
+        alt imeiValido
+            App->>App: navega -> resumoContratacaoDebito
+        else inválido
+            App->>App: exibe erro, permanece no bottomSheetIMEI
+        end
+    end
+
+    alt fluxo cartão
+        App->>API: POST /seguro/celular/propostas
+        note right of API: formaPagamento=cartao_credito
+        API-->>App: propostaId, propostaExpiraEm, vigenciaInicio, vigenciaFim, valorReservaLimite
+        U->>App: tap "Contratar plano"
+        App->>App: navega -> autenticacao
+    else fluxo débito
+        App->>API: POST /seguro/celular/propostas
+        note right of API: formaPagamento=debito, imei? opcional
+        API-->>App: propostaId, propostaExpiraEm, vigenciaInicio, vigenciaFim, agencia, contaCorrente, diaCobranca
+        U->>App: tap "Contratar plano"
+        App->>App: navega -> bottomSheetConfirmePagamento
+        U->>App: tap "Pagar"
+        App->>App: navega -> autenticacao
+    end
+
+    U->>App: input PIN (4 dígitos)
+    U->>App: tap "Concluir"
+    App->>API: POST /seguro/celular/contratacoes
+    note right of API: guard: propostaId not-expired
+    API-->>App: contratacaoId, status, vigenciaInicio, emailEnviado
+    API-)U: e-mail "seguro-celular-contratado"
+    App->>App: navega -> sucesso
