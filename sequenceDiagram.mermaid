@@ -1,0 +1,34 @@
+sequenceDiagram
+    participant U as Usuário (App)
+    participant B as Backend (APIs)
+
+    Note over U,B: 1. Vitrine e Landing
+    U->>B: GET /seguros/ofertas (Acessa Seguros)
+    B-->>U: Retorna catálogo e banners
+    U->>B: GET /seguros/celular/info (Toca em Celular)
+    B-->>U: Retorna benefícios e preço base
+
+    Note over U,B: 2. Configuração do Plano
+    U->>B: GET /dispositivos/atual
+    B-->>U: Retorna modelo e memória (pré-preenchido)
+    U->>B: POST /seguros/celular/simular (Altera franquia/cobertura)
+    B-->>U: Retorna nova mensalidade recalculada
+
+    Note over U,B: 3. Bifurcação de Negócio
+    U->>B: GET /clientes/elegibilidade (Toca em Continuar)
+    B-->>U: Retorna perfil (isExclusivo, hasCartao, requiresIMEI)
+
+    Note over U,B: 4. Pagamento e Resumo
+    alt Cliente com Cartão
+        U->>B: GET /pagamentos/simular-parcelas
+        B-->>U: Retorna opções de 1x a 12x
+    else Cliente no Débito
+        U->>B: GET /contas/saldo
+        B-->>U: Retorna saldo para a tela de Confirmação
+    end
+
+    Note over U,B: 5. Fechamento
+    U->>B: POST /autenticacao/validar-pin (Digita senha)
+    B-->>U: Sucesso (Token de validação)
+    U->>B: POST /seguros/celular/contratar (Confirmação final)
+    B-->>U: Sucesso (Apólice gerada, data de vigência)
